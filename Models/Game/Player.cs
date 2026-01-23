@@ -1,3 +1,5 @@
+using System;
+
 namespace ChessServer.Models
 {
     public class Player
@@ -5,11 +7,23 @@ namespace ChessServer.Models
         public string ConnectionId { get; set; } = string.Empty;
         public string UserId { get; set; } = string.Empty;
         public string Username { get; set; } = string.Empty;
+        public DateTime JoinedAt { get; set; }
         public bool IsConnected { get; set; } = true;
-        public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
+        public DateTime? DisconnectedAt { get; set; }
         
-        // برای دعوت از طریق تلگرام
-        public string? TelegramId { get; set; }
-        public string? InviteCode { get; set; }
+        // برای تشخیص بازیکن
+        public override bool Equals(object? obj)
+        {
+            if (obj is Player other)
+            {
+                return ConnectionId == other.ConnectionId;
+            }
+            return false;
+        }
+        
+        public override int GetHashCode()
+        {
+            return ConnectionId.GetHashCode();
+        }
     }
 }

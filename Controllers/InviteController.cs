@@ -39,4 +39,4 @@ namespace ChessServer.Controllers
         public string GameName { get; set; } = "Chess Game";
         public string? OpponentTelegramId { get; set; }
     }
-}
+}   

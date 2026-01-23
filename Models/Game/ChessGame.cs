@@ -1,10 +1,14 @@
 // Models/ChessBoard.cs
+using System.Text;
+
 namespace ChessServer.Models
 {
     public class ChessBoard
     {
-        private string[,] board = new string[8, 8];
+        private string[,] board;
         
+                public const string InitialFen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+
         public ChessBoard()
         {
             InitializeBoard();
@@ -12,47 +16,82 @@ namespace ChessServer.Models
         
         private void InitializeBoard()
         {
-            // تنظیم مهره‌های سفید
-            board[0, 0] = "♜"; board[0, 1] = "♞"; board[0, 2] = "♝"; board[0, 3] = "♛"; 
-            board[0, 4] = "♚"; board[0, 5] = "♝"; board[0, 6] = "♞"; board[0, 7] = "♜";
-            for (int i = 0; i < 8; i++) board[1, i] = "♟";
+            board = new string[8, 8];
             
-            // خانه‌های خالی
+            // سفید
+            board[7, 0] = "R"; board[7, 1] = "N"; board[7, 2] = "B"; board[7, 3] = "Q";
+            board[7, 4] = "K"; board[7, 5] = "B"; board[7, 6] = "N"; board[7, 7] = "R";
+            for (int i = 0; i < 8; i++) board[6, i] = "P";
+            
+            // سیاه
+            board[0, 0] = "r"; board[0, 1] = "n"; board[0, 2] = "b"; board[0, 3] = "q";
+            board[0, 4] = "k"; board[0, 5] = "b"; board[0, 6] = "n"; board[0, 7] = "r";
+            for (int i = 0; i < 8; i++) board[1, i] = "p";
+            
+            // خالی
             for (int i = 2; i < 6; i++)
                 for (int j = 0; j < 8; j++)
-                    board[i, j] = "";
-            
-            // تنظیم مهره‌های سیاه
-            for (int i = 0; i < 8; i++) board[6, i] = "♙";
-            board[7, 0] = "♖"; board[7, 1] = "♘"; board[7, 2] = "♗"; board[7, 3] = "♕";
-            board[7, 4] = "♔"; board[7, 5] = "♗"; board[7, 6] = "♘"; board[7, 7] = "♖";
+                    board[i, j] = null;
         }
         
-        public object[,] GetCurrentBoard()
+        public string GetCurrentFen()
         {
-            var result = new object[8, 8];
-            for (int i = 0; i < 8; i++)
+            return InitialFen;
+        }
+        
+        public string[,] GetCurrentBoard()
+        {
+            return board;
+        }
+        
+        public object GetBoardState()
+        {
+            var fen = new StringBuilder();
+            
+            for (int row = 0; row < 8; row++)
             {
-                for (int j = 0; j < 8; j++)
+                int emptyCount = 0;
+                
+                for (int col = 0; col < 8; col++)
                 {
-                    result[i, j] = new
+                    var piece = board[row, col];
+                    
+                    if (piece == null)
                     {
-                        piece = board[i, j],
-                        row = i,
-                        col = j,
-                        color = string.IsNullOrEmpty(board[i, j]) ? "" : 
-                               "♙♖♘♗♕♔".Contains(board[i, j]) ? "black" : "white"
-                    };
+                        emptyCount++;
+                    }
+                    else
+                    {
+                        if (emptyCount > 0)
+                        {
+                            fen.Append(emptyCount);
+                            emptyCount = 0;
+                        }
+                        fen.Append(piece);
+                    }
+                }
+                
+                if (emptyCount > 0)
+                {
+                    fen.Append(emptyCount);
+                }
+                
+                if (row < 7)
+                {
+                    fen.Append('/');
                 }
             }
-            return result;
-        }
-        
-        public bool MakeMove(string from, string to, string? promotion = null)
-        {
-            // در اینجا منطق حرکت رو اضافه کن
-            // فعلاً برای تست، حرکت رو قبول می‌کنه
-            return true;
+            
+            // قسمت‌های دیگر FEN (فعلاً ساده)
+            fen.Append(" w KQkq - 0 1");
+            
+            return new
+            {
+                Fen = fen.ToString(),
+                Board = board,
+                CurrentTurn = "white",
+                MoveNumber = 1
+            };
         }
     }
 }

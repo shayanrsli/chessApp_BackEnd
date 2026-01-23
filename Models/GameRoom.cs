@@ -26,5 +26,8 @@ namespace ChessServer.Models
         public List<Move> Moves { get; set; } = new();
 
         public bool IsFull => WhitePlayer != null && BlackPlayer != null;
+
+            public bool HasStarted => Status == GameStatus.InProgress;
+
     }
 }

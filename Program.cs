@@ -1,73 +1,61 @@
+// Program.cs
 using ChessServer.Hubs;
 using ChessServer.Services;
+using Microsoft.AspNetCore.Cors;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add services to the container.
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-builder.WebHost.UseUrls("http://localhost:5131");
+// ✅ اضافه کردن GameManager به عنوان Singleton
+builder.Services.AddSingleton<GameManager>();
 
-// 1. SignalR با حداقل تنظیمات
+// ✅ اضافه کردن SignalR
 builder.Services.AddSignalR();
 
-// 2. CORS خیلی ساده
+// ✅ **CORS تنظیمات کامل**
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowLocalhost", policy =>
-    {
-        policy.WithOrigins("http://localhost:5173", "https://localhost:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
-    });
+    options.AddPolicy("AllowAll",
+        builder =>
+        {
+            builder
+                .WithOrigins(
+                    "http://localhost:5173",  // Vite dev server
+                    "http://localhost:3000",  // React dev server
+                    "http://localhost:8080"   // Vue dev server
+                )
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials()
+                .SetIsOriginAllowed(_ => true); // برای تست، همه origins را allow کن
+        });
 });
-
-// 3. سایر سرویس‌ها
-builder.Services.AddControllers();
-builder.Services.AddSwaggerGen();
-builder.Services.AddSingleton<GameManager>();
 
 var app = builder.Build();
 
-// 4. لاگ ساده
-app.Use(async (context, next) =>
-{
-    Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] {context.Request.Method} {context.Request.Path}");
-    await next();
-});
-
-// 5. CORS
-app.UseCors("AllowLocalhost");
-
-// 6. ❌❌❌ خیلی مهم: کامنت کردن UseHttpsRedirection ❌❌❌
-// app.UseHttpsRedirection(); // این خط رو کامنت کن یا پاک کن
-
-app.UseAuthorization();
-
-// 7. Swagger فقط در development
+// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
+    
+    // ✅ برای توسعه، اجازه دهید همه چیز رد شود
+    app.UseCors("AllowAll");
+}
+else
+{
+    app.UseHttpsRedirection();
+    app.UseCors("AllowAll");
 }
 
-// 8. Map controllers
+app.UseAuthorization();
+
+// ✅ **اول CORS، بعد MapHub**
 app.MapControllers();
-
-// 9. ❗ مهم: MapHub فقط یک بار و با مسیر درست
-app.MapHub<ChessHub>("/chessHub");
-
-// 10. endpointهای تست
-app.MapGet("/", () => "Chess Server is running!");
-app.MapGet("/test", () => "Test OK!");
-app.MapGet("/api/ping", () => new { message = "Pong", time = DateTime.UtcNow });
-
-// 11. ❌ حذف endpoint دستی negotiate (بذار SignalR خودش مدیریت کنه)
-
-Console.WriteLine("========================================");
-Console.WriteLine("🚀 Chess Server Started!");
-Console.WriteLine("🔗 SignalR Hub: http://localhost:5131/chessHub");
-Console.WriteLine("🌐 WebSocket: ws://localhost:5131/chessHub");
-Console.WriteLine("📡 Test: http://localhost:5131/test");
-Console.WriteLine("========================================");
+app.MapHub<ChessHub>("/chessHub").RequireCors("AllowAll"); // این خط مهم است!
 
 app.Run();

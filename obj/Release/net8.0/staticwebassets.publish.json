@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "C6qXOZeTsf01oTDtrfVmkz83b5bgDlAxbtlpr5hBp6U=",
+  "Source": "ChessServer",
+  "BasePath": "_content/ChessServer",
+  "Mode": "Default",
+  "ManifestType": "Publish",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}

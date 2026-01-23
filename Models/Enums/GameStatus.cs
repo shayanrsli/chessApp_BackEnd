@@ -3,13 +3,16 @@ namespace ChessServer.Models.Enums
 
     public enum GameStatus
     {
+        Waiting,
         WaitingForPlayer = 0,
         InProgress = 1,
         Finished = 2,  // ✅ این رو اضافه کردم
         Draw = 3,
         WhiteWon = 4,
         BlackWon = 5,
-        Abandoned = 6
+        Abandoned = 6,
+
+        Cancelled = 7
     }
 
     public enum PlayerColor

@@ -59,3 +59,4 @@ C:\Users\veneto\Desktop\chessBack\ChessServer\obj\Debug\net8.0\refint\ChessServe
 C:\Users\veneto\Desktop\chessBack\ChessServer\obj\Debug\net8.0\ChessServer.pdb
 C:\Users\veneto\Desktop\chessBack\ChessServer\obj\Debug\net8.0\ChessServer.genruntimeconfig.cache
 C:\Users\veneto\Desktop\chessBack\ChessServer\obj\Debug\net8.0\ref\ChessServer.dll
+C:\Users\veneto\Desktop\chessBack\ChessServer\obj\Debug\net8.0\ChessServer.sourcelink.json

@@ -1,61 +1,63 @@
-// Program.cs
 using ChessServer.Hubs;
 using ChessServer.Services;
-using Microsoft.AspNetCore.Cors;
+using MySqlConnector;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ✅ اضافه کردن GameManager به عنوان Singleton
 builder.Services.AddSingleton<GameManager>();
-
-// ✅ اضافه کردن SignalR
 builder.Services.AddSignalR();
 
-// ✅ **CORS تنظیمات کامل**
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll",
-        builder =>
-        {
-            builder
-                .WithOrigins(
-                    "http://localhost:5173",  // Vite dev server
-                    "http://localhost:3000",  // React dev server
-                    "http://localhost:8080"   // Vue dev server
-                )
-                .AllowAnyHeader()
-                .AllowAnyMethod()
-                .AllowCredentials()
-                .SetIsOriginAllowed(_ => true); // برای تست، همه origins را allow کن
-        });
+    options.AddPolicy("CorsPolicy", policy =>
+    {
+        policy
+            .SetIsOriginAllowed(_ => true) // برای dev
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials();
+    });
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var cs = config.GetConnectionString("MySql");
+
+        using var conn = new MySqlConnection(cs);
+        conn.Open();
+
+        Console.WriteLine("✅ MySQL connection SUCCESS");
+        Console.WriteLine($"📌 Server: {conn.ServerVersion}");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine("❌ MySQL connection FAILED");
+        Console.WriteLine(ex.Message);
+    }
+}
+
+
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
-    
-    // ✅ برای توسعه، اجازه دهید همه چیز رد شود
-    app.UseCors("AllowAll");
-}
-else
-{
-    app.UseHttpsRedirection();
-    app.UseCors("AllowAll");
 }
 
+app.UseRouting();
+app.UseCors("CorsPolicy");
 app.UseAuthorization();
 
-// ✅ **اول CORS، بعد MapHub**
 app.MapControllers();
-app.MapHub<ChessHub>("/chessHub").RequireCors("AllowAll"); // این خط مهم است!
+app.MapHub<ChessHub>("/chessHub").RequireCors("CorsPolicy");
 
 app.Run();

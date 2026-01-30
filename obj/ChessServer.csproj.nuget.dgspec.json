@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\veneto\\Desktop\\chessBack\\ChessServer\\ChessServer.csproj": {}
+    "C:\\Users\\veneto\\Desktop\\chessBack\\chessserver\\ChessServer.csproj": {}
   },
   "projects": {
-    "C:\\Users\\veneto\\Desktop\\chessBack\\ChessServer\\ChessServer.csproj": {
+    "C:\\Users\\veneto\\Desktop\\chessBack\\chessserver\\ChessServer.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\veneto\\Desktop\\chessBack\\ChessServer\\ChessServer.csproj",
+        "projectUniqueName": "C:\\Users\\veneto\\Desktop\\chessBack\\chessserver\\ChessServer.csproj",
         "projectName": "ChessServer",
-        "projectPath": "C:\\Users\\veneto\\Desktop\\chessBack\\ChessServer\\ChessServer.csproj",
+        "projectPath": "C:\\Users\\veneto\\Desktop\\chessBack\\chessserver\\ChessServer.csproj",
         "packagesPath": "C:\\Users\\veneto\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\veneto\\Desktop\\chessBack\\ChessServer\\obj\\",
+        "outputPath": "C:\\Users\\veneto\\Desktop\\chessBack\\chessserver\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\veneto\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -20,7 +20,7 @@
           "net8.0"
         ],
         "sources": {
-          "https://api.nuget.org/v3/index.json": {}
+          "https://mirror-nuget.runflare.com/v3/index.json": {}
         },
         "frameworks": {
           "net8.0": {
@@ -38,6 +38,10 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "Dapper": {
+              "target": "Package",
+              "version": "[2.1.66, )"
+            },
             "Microsoft.AspNetCore.OpenApi": {
               "target": "Package",
               "version": "[8.0.21, )"
@@ -49,6 +53,14 @@
             "Microsoft.AspNetCore.SignalR.Client": {
               "target": "Package",
               "version": "[10.0.1, )"
+            },
+            "MySqlConnector": {
+              "target": "Package",
+              "version": "[2.5.0, )"
+            },
+            "Pomelo.EntityFrameworkCore.MySql": {
+              "target": "Package",
+              "version": "[9.0.0, )"
             },
             "Swashbuckle.AspNetCore": {
               "target": "Package",

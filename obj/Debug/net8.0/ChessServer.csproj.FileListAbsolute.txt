@@ -60,3 +60,12 @@ C:\Users\veneto\Desktop\chessBack\ChessServer\obj\Debug\net8.0\ChessServer.pdb
 C:\Users\veneto\Desktop\chessBack\ChessServer\obj\Debug\net8.0\ChessServer.genruntimeconfig.cache
 C:\Users\veneto\Desktop\chessBack\ChessServer\obj\Debug\net8.0\ref\ChessServer.dll
 C:\Users\veneto\Desktop\chessBack\ChessServer\obj\Debug\net8.0\ChessServer.sourcelink.json
+C:\Users\veneto\Desktop\chessBack\chessserver\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.dll
+C:\Users\veneto\Desktop\chessBack\chessserver\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.Abstractions.dll
+C:\Users\veneto\Desktop\chessBack\chessserver\bin\Debug\net8.0\Microsoft.EntityFrameworkCore.Relational.dll
+C:\Users\veneto\Desktop\chessBack\chessserver\bin\Debug\net8.0\Microsoft.Extensions.Caching.Abstractions.dll
+C:\Users\veneto\Desktop\chessBack\chessserver\bin\Debug\net8.0\Microsoft.Extensions.Caching.Memory.dll
+C:\Users\veneto\Desktop\chessBack\chessserver\bin\Debug\net8.0\Microsoft.Extensions.Configuration.Abstractions.dll
+C:\Users\veneto\Desktop\chessBack\chessserver\bin\Debug\net8.0\MySqlConnector.dll
+C:\Users\veneto\Desktop\chessBack\chessserver\bin\Debug\net8.0\Pomelo.EntityFrameworkCore.MySql.dll
+C:\Users\veneto\Desktop\chessBack\chessserver\bin\Debug\net8.0\Dapper.dll

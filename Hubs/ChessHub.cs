@@ -22,7 +22,6 @@ namespace ChessServer.Hubs
             return $"Pong! {DateTime.UtcNow:O} | {Context.ConnectionId}";
         }
 
-        // ✅ CreateGame فقط بازی را می‌سازد و Creator را white می‌کند و به group می‌برد
         public async Task<object> CreateGame(string gameName, string? playerName, string? playerId)
         {
             try
@@ -30,26 +29,34 @@ namespace ChessServer.Hubs
                 var room = _gameManager.CreateGame(gameName, isPrivate: true);
                 var userId = string.IsNullOrWhiteSpace(playerId) ? Context.ConnectionId : playerId!;
                 var username = string.IsNullOrWhiteSpace(playerName) ? $"Player_{Context.ConnectionId[..6]}" : playerName!;
+                var now = DateTime.UtcNow;
 
                 var player = new Player
                 {
                     ConnectionId = Context.ConnectionId,
                     UserId = userId,
                     Username = username,
-                    JoinedAt = DateTime.UtcNow,
+                    JoinedAt = now,
                     IsConnected = true,
-                    LastSeenAt = DateTime.UtcNow
+                    LastSeenAt = now
                 };
 
-                room.WhitePlayer = player;
-                room.Status = GameStatus.WaitingForPlayer;
-                room.CurrentFen = ChessBoard.InitialFen;
+                _gameManager.WithRoomLock(room.RoomId, () =>
+                {
+                    room.WhitePlayer = player;
+                    room.Status = GameStatus.WaitingForPlayer;
+                    room.CurrentFen = ChessBoard.InitialFen;
+
+                    // ✅ clock init
+                    room.WhiteTimeLeft = room.InitialSeconds;
+                    room.BlackTimeLeft = room.InitialSeconds;
+                    room.ActiveColor = "white";
+                    room.LastTickAtUtc = now;
+                });
 
                 _gameManager.IndexConnection(Context.ConnectionId, room.RoomId, userId);
-
                 await Groups.AddToGroupAsync(Context.ConnectionId, room.RoomId);
 
-                // فقط creator را مطلع کن
                 var resp = new
                 {
                     success = true,
@@ -61,7 +68,7 @@ namespace ChessServer.Hubs
                         room.Name,
                         Status = room.Status.ToString(),
                         room.IsPrivate,
-                        WhitePlayer = room.WhitePlayer.Username
+                        WhitePlayer = room.WhitePlayer?.Username ?? username
                     }
                 };
 
@@ -75,7 +82,6 @@ namespace ChessServer.Hubs
             }
         }
 
-        // ✅ متد واحد: اگر داخل بازی هستی sync/reconnect، اگر نیستی join
         public async Task<object> EnsureJoined(string roomId, string? playerName = null, string? playerId = null)
         {
             try
@@ -85,79 +91,100 @@ namespace ChessServer.Hubs
 
                 var userId = string.IsNullOrWhiteSpace(playerId) ? Context.ConnectionId : playerId!;
                 var username = string.IsNullOrWhiteSpace(playerName) ? $"Player_{Context.ConnectionId[..6]}" : playerName!;
+                var now = DateTime.UtcNow;
 
-                // اگر بازیکن قبلاً داخل اتاق است => reconnect/sync
+                // ✅ apply elapsed before snapshot
+                _gameManager.WithRoomLock(room.RoomId, () => _gameManager.ApplyElapsedTime(room, now));
+
+                // reconnect white
                 if (room.WhitePlayer?.UserId == userId)
                 {
-                    room.WhitePlayer.ConnectionId = Context.ConnectionId;
-                    room.WhitePlayer.Username = username;
-                    room.WhitePlayer.IsConnected = true;
-                    room.WhitePlayer.LastSeenAt = DateTime.UtcNow;
+                    _gameManager.WithRoomLock(room.RoomId, () =>
+                    {
+                        room.WhitePlayer!.ConnectionId = Context.ConnectionId;
+                        room.WhitePlayer.Username = username;
+                        room.WhitePlayer.IsConnected = true;
+                        room.WhitePlayer.LastSeenAt = now;
+                    });
 
                     _gameManager.IndexConnection(Context.ConnectionId, room.RoomId, userId);
                     await Groups.AddToGroupAsync(Context.ConnectionId, room.RoomId);
 
-                    return await BuildSyncPayload(room, "white", isReconnecting: true);
+                    return BuildSyncPayload(room, "white", isReconnecting: true);
                 }
 
+                // reconnect black
                 if (room.BlackPlayer?.UserId == userId)
                 {
-                    room.BlackPlayer.ConnectionId = Context.ConnectionId;
-                    room.BlackPlayer.Username = username;
-                    room.BlackPlayer.IsConnected = true;
-                    room.BlackPlayer.LastSeenAt = DateTime.UtcNow;
+                    _gameManager.WithRoomLock(room.RoomId, () =>
+                    {
+                        room.BlackPlayer!.ConnectionId = Context.ConnectionId;
+                        room.BlackPlayer.Username = username;
+                        room.BlackPlayer.IsConnected = true;
+                        room.BlackPlayer.LastSeenAt = now;
+                    });
 
                     _gameManager.IndexConnection(Context.ConnectionId, room.RoomId, userId);
                     await Groups.AddToGroupAsync(Context.ConnectionId, room.RoomId);
 
-                    return await BuildSyncPayload(room, "black", isReconnecting: true);
+                    return BuildSyncPayload(room, "black", isReconnecting: true);
                 }
 
-                // بازیکن جدید
-                if (room.IsFull)
-                    return new { success = false, message = "بازی پر شده است" };
-
-                // همیشه نفر دوم = سیاه
-                if (room.BlackPlayer != null)
-                    return new { success = false, message = "بازیکن دوم قبلاً وارد شده" };
+                // new join
+                if (room.IsFull) return new { success = false, message = "بازی پر شده است" };
+                if (room.BlackPlayer != null) return new { success = false, message = "بازیکن دوم قبلاً وارد شده" };
+                if (room.WhitePlayer == null) return new { success = false, message = "بازی ناقص است" };
 
                 var black = new Player
                 {
                     ConnectionId = Context.ConnectionId,
                     UserId = userId,
                     Username = username,
-                    JoinedAt = DateTime.UtcNow,
+                    JoinedAt = now,
                     IsConnected = true,
-                    LastSeenAt = DateTime.UtcNow
+                    LastSeenAt = now
                 };
 
-                room.BlackPlayer = black;
-                room.Status = GameStatus.InProgress;
-                room.StartedAt = DateTime.UtcNow;
+                _gameManager.WithRoomLock(room.RoomId, () =>
+                {
+                    room.BlackPlayer = black;
+                    room.Status = GameStatus.InProgress;
+                    room.StartedAt = now;
+
+                    // clock reset at start
+                    room.WhiteTimeLeft = room.InitialSeconds;
+                    room.BlackTimeLeft = room.InitialSeconds;
+                    room.ActiveColor = "white";
+                    room.LastTickAtUtc = now;
+                });
 
                 _gameManager.IndexConnection(Context.ConnectionId, room.RoomId, userId);
                 await Groups.AddToGroupAsync(Context.ConnectionId, room.RoomId);
 
-                // به هر دو نفر GameStarted بده (سرور-authoritative)
                 await Clients.Group(room.RoomId).SendAsync("GameStarted", new
                 {
                     RoomId = room.RoomId,
                     Name = room.Name,
-                    WhitePlayer = new { room.WhitePlayer!.Username, room.WhitePlayer.UserId, room.WhitePlayer.ConnectionId },
+                    WhitePlayer = new { room.WhitePlayer.Username, room.WhitePlayer.UserId, room.WhitePlayer.ConnectionId },
                     BlackPlayer = new { room.BlackPlayer!.Username, room.BlackPlayer.UserId, room.BlackPlayer.ConnectionId },
                     Board = room.CurrentFen,
-                    CurrentTurn = "white",
-                    Status = "InProgress"
+                    CurrentTurn = room.ActiveColor,
+                    Status = "InProgress",
+
+                    // ✅ clock snapshot
+                    activeColor = room.ActiveColor,
+                    whiteTimeLeft = room.WhiteTimeLeft,
+                    blackTimeLeft = room.BlackTimeLeft,
+                    serverNowUtc = now.ToString("O")
                 });
 
-                // به سفید اعلام کن که نفر دوم آمد
                 await Clients.Group(room.RoomId).SendAsync("PlayerJoined", new
                 {
                     Player = new { Username = black.Username, UserId = black.UserId, Color = "black" },
                     RoomId = room.RoomId
                 });
 
-                return await BuildSyncPayload(room, "black", isReconnecting: false);
+                return BuildSyncPayload(room, "black", isReconnecting: false);
             }
             catch (Exception ex)
             {
@@ -166,7 +193,6 @@ namespace ChessServer.Hubs
             }
         }
 
-        // برای join با inviteCode فقط roomId را resolve می‌کنیم و می‌ریم EnsureJoined
         public Task<object> JoinByInviteCode(string inviteCode, string? playerName = null, string? playerId = null)
         {
             var room = _gameManager.GetGameByInviteCode(inviteCode);
@@ -174,7 +200,6 @@ namespace ChessServer.Hubs
             return EnsureJoined(room.RoomId, playerName, playerId);
         }
 
-        // ✅ MakeMove: fenAfter را از کلاینت می‌گیریم تا همه sync شوند (بعداً باید server-validate شود)
         public async Task<object> MakeMove(string roomId, string from, string to, string? promotion = null, string? fenAfter = null)
         {
             try
@@ -183,49 +208,73 @@ namespace ChessServer.Hubs
                 if (room == null) return new { success = false, message = "بازی یافت نشد" };
                 if (room.Status != GameStatus.InProgress) return new { success = false, message = "بازی شروع نشده است" };
 
+                var now = DateTime.UtcNow;
+
                 var userInfo = _gameManager.FindByConnection(Context.ConnectionId);
                 var userId = userInfo?.UserId ?? Context.ConnectionId;
 
-                var isWhiteTurn = room.Moves.Count % 2 == 0;
-                var expectedUserId = isWhiteTurn ? room.WhitePlayer?.UserId : room.BlackPlayer?.UserId;
-                if (expectedUserId == null) return new { success = false, message = "بازیکن ناقص است" };
+                object? broadcastPayload = null;
 
-                if (expectedUserId != userId)
-                    return new { success = false, message = "نوبت شما نیست" };
-
-                var move = new Move
+                var result = _gameManager.WithRoomLock(room.RoomId, () =>
                 {
-                    From = from,
-                    To = to,
-                    Promotion = promotion,
-                    PlayerUserId = userId,
-                    PlayerConnectionId = Context.ConnectionId,
-                    Timestamp = DateTime.UtcNow,
-                    FenAfter = fenAfter
-                };
+                    _gameManager.ApplyElapsedTime(room, now);
 
-                room.Moves.Add(move);
+                    if (room.WhiteTimeLeft <= 0 || room.BlackTimeLeft <= 0)
+                        return (object)new { success = false, message = "⏰ زمان بازی تمام شده است" };
 
-                if (!string.IsNullOrWhiteSpace(fenAfter))
-                    room.CurrentFen = fenAfter!;
+                    var expectedUserId = room.ActiveColor == "white" ? room.WhitePlayer?.UserId : room.BlackPlayer?.UserId;
+                    if (expectedUserId == null) return (object)new { success = false, message = "بازیکن ناقص است" };
 
-                var nextTurn = isWhiteTurn ? "black" : "white";
+                    if (expectedUserId != userId)
+                        return (object)new { success = false, message = "نوبت شما نیست" };
 
-                await Clients.Group(roomId).SendAsync("MoveMade", new
-                {
-                    success = true,
-                    roomId,
-                    from,
-                    to,
-                    promotion,
-                    byUserId = userId,
-                    color = isWhiteTurn ? "white" : "black",
-                    nextTurn,
-                    moveNumber = room.Moves.Count,
-                    fen = room.CurrentFen
+                    var moverColor = room.ActiveColor;
+
+                    var move = new Move
+                    {
+                        From = from,
+                        To = to,
+                        Promotion = promotion,
+                        PlayerUserId = userId,
+                        PlayerConnectionId = Context.ConnectionId,
+                        Timestamp = now,
+                        FenAfter = fenAfter
+                    };
+
+                    room.Moves.Add(move);
+
+                    if (!string.IsNullOrWhiteSpace(fenAfter))
+                        room.CurrentFen = fenAfter!;
+
+                    _gameManager.SwitchTurnAndIncrement(room, moverColor);
+
+                    broadcastPayload = new
+                    {
+                        success = true,
+                        roomId,
+                        from,
+                        to,
+                        promotion,
+                        byUserId = userId,
+                        color = moverColor,
+                        nextTurn = room.ActiveColor,
+                        moveNumber = room.Moves.Count,
+                        fen = room.CurrentFen,
+
+                        // ✅ clock snapshot
+                        activeColor = room.ActiveColor,
+                        whiteTimeLeft = room.WhiteTimeLeft,
+                        blackTimeLeft = room.BlackTimeLeft,
+                        serverNowUtc = now.ToString("O")
+                    };
+
+                    return (object)new { success = true };
                 });
 
-                return new { success = true };
+                if (broadcastPayload != null)
+                    await Clients.Group(roomId).SendAsync("MoveMade", broadcastPayload);
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -246,8 +295,8 @@ namespace ChessServer.Hubs
             var userId = userInfo?.UserId ?? Context.ConnectionId;
 
             var sender =
-                room.WhitePlayer?.UserId == userId ? room.WhitePlayer.Username :
-                room.BlackPlayer?.UserId == userId ? room.BlackPlayer.Username :
+                room.WhitePlayer?.UserId == userId ? room.WhitePlayer!.Username :
+                room.BlackPlayer?.UserId == userId ? room.BlackPlayer!.Username :
                 "Unknown";
 
             await Clients.Group(roomId).SendAsync("GameMessage", new
@@ -261,12 +310,15 @@ namespace ChessServer.Hubs
             return new { success = true };
         }
 
-        public async Task<object> GetGameStatus(string roomId)
+        public Task<object> GetGameStatus(string roomId)
         {
             var room = _gameManager.GetGame(roomId);
-            if (room == null) return new { success = false, message = "بازی یافت نشد" };
+            if (room == null) return Task.FromResult<object>(new { success = false, message = "بازی یافت نشد" });
 
-            return new
+            var now = DateTime.UtcNow;
+            _gameManager.WithRoomLock(room.RoomId, () => _gameManager.ApplyElapsedTime(room, now));
+
+            return Task.FromResult<object>(new
             {
                 success = true,
                 roomId = room.RoomId,
@@ -275,8 +327,13 @@ namespace ChessServer.Hubs
                 black = room.BlackPlayer is null ? null : new { room.BlackPlayer.Username, room.BlackPlayer.UserId },
                 fen = room.CurrentFen,
                 moveCount = room.Moves.Count,
-                currentTurn = room.Moves.Count % 2 == 0 ? "white" : "black"
-            };
+                currentTurn = room.ActiveColor,
+
+                activeColor = room.ActiveColor,
+                whiteTimeLeft = room.WhiteTimeLeft,
+                blackTimeLeft = room.BlackTimeLeft,
+                serverNowUtc = now.ToString("O")
+            });
         }
 
         public override async Task OnConnectedAsync()
@@ -306,12 +363,12 @@ namespace ChessServer.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        private Task<object> BuildSyncPayload(GameRoom room, string yourColor, bool isReconnecting)
+        private object BuildSyncPayload(GameRoom room, string yourColor, bool isReconnecting)
         {
-            var currentTurn = room.Moves.Count % 2 == 0 ? "white" : "black";
             var opponentName = yourColor == "white" ? room.BlackPlayer?.Username : room.WhitePlayer?.Username;
+            var now = DateTime.UtcNow;
 
-            return Task.FromResult<object>(new
+            return new
             {
                 success = true,
                 roomId = room.RoomId,
@@ -320,10 +377,15 @@ namespace ChessServer.Hubs
                 status = room.Status.ToString(),
                 opponent = opponentName ?? "در انتظار حریف",
                 fen = room.CurrentFen,
-                currentTurn,
-                moveCount = room.Moves.Count
-            });
+                currentTurn = room.ActiveColor,
+                moveCount = room.Moves.Count,
+
+                // ✅ clock snapshot
+                activeColor = room.ActiveColor,
+                whiteTimeLeft = room.WhiteTimeLeft,
+                blackTimeLeft = room.BlackTimeLeft,
+                serverNowUtc = now.ToString("O")
+            };
         }
     }
 }
-    
